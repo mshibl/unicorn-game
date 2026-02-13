@@ -217,7 +217,7 @@ export async function POST(req: NextRequest) {
         }
 
         await broadcastState();
-        return NextResponse.json({ ok: true });
+        return NextResponse.json({ ok: true, winnerPhotoDataUrl: state.winnerPhotoDataUrl });
       }
 
       case "set_skip_turn": {

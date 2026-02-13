@@ -69,6 +69,13 @@ export default function BroadcastPage() {
     };
   }, []);
 
+  // Stop game show music when we switch to reveal (celebration plays instead)
+  useEffect(() => {
+    if (gameState?.status === "revealed" && audioRef.current) {
+      audioRef.current.pause();
+    }
+  }, [gameState?.status]);
+
   if (gameState?.status === "revealed") {
     return (
       <div className="relative">
@@ -76,13 +83,6 @@ export default function BroadcastPage() {
           fullName={gameState.maskedPhrase}
           winnerPhotoSrc={gameState.winnerPhotoDataUrl || undefined}
         />
-        {/* Music continues during reveal - floating music indicator */}
-        {musicPlaying && (
-          <div className="fixed top-4 right-4 z-[60] flex items-center gap-2 px-4 py-2 bg-black/40 rounded-full text-white/80 backdrop-blur">
-            <Music className="w-4 h-4 animate-pulse" />
-            <span className="text-sm">Music on</span>
-          </div>
-        )}
       </div>
     );
   }
@@ -93,7 +93,7 @@ export default function BroadcastPage() {
       <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between">
         <div className="flex items-center gap-2 px-4 py-2 bg-purple-600/80 rounded-full text-white text-sm font-medium backdrop-blur">
           <Monitor className="w-4 h-4" />
-          Broadcast view — Share this tab
+          Broadcast view
         </div>
         {!musicPlaying ? (
           <button

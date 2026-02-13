@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import ReactConfetti from "react-confetti";
+import { Music } from "lucide-react";
 import { Star, Sparkles } from "lucide-react";
 
 // Unicorn horn SVG
@@ -35,6 +36,38 @@ export default function FinalReveal({ fullName, winnerPhotoSrc }: FinalRevealPro
   const [showPhoto, setShowPhoto] = useState(false);
   const [showConfetti, setShowConfetti] = useState(true);
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
+  const [celebrationPlaying, setCelebrationPlaying] = useState(false);
+  const [celebrationReady, setCelebrationReady] = useState(false);
+  const [celebrationError, setCelebrationError] = useState(false);
+  const celebrationAudioRef = useRef<InstanceType<typeof Audio> | null>(null);
+
+  const playCelebration = useCallback(() => {
+    const audio = celebrationAudioRef.current;
+    if (!audio) return;
+    audio.play().then(() => setCelebrationPlaying(true)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const url =
+      process.env.NEXT_PUBLIC_CELEBRATION_MUSIC_URL || "/celebration-music.mp3";
+    const audio = new Audio(url);
+    celebrationAudioRef.current = audio;
+    audio.loop = true;
+    audio.volume = 0.5;
+
+    audio.addEventListener("canplaythrough", () => setCelebrationReady(true));
+    audio.addEventListener("error", () => {
+      setCelebrationReady(true);
+      setCelebrationError(true);
+    });
+
+    audio.play().then(() => setCelebrationPlaying(true)).catch(() => {});
+
+    return () => {
+      audio.pause();
+      celebrationAudioRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     setWindowSize({ width: window.innerWidth, height: window.innerHeight });
@@ -146,6 +179,7 @@ export default function FinalReveal({ fullName, winnerPhotoSrc }: FinalRevealPro
                 src={winnerPhotoSrc || "/winner-photo.png"}
                 alt={fullName}
                 className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
                 onError={(e) => {
                   const target = e.currentTarget;
                   target.style.display = "none";
@@ -177,6 +211,22 @@ export default function FinalReveal({ fullName, winnerPhotoSrc }: FinalRevealPro
             <span className="animate-bounce" style={{ animationDelay: "0.2s" }}>✨</span>
           </p>
         </div>
+
+        {/* Celebration music - play button if autoplay blocked */}
+        {!celebrationPlaying && celebrationReady && !celebrationError && (
+          <button
+            onClick={playCelebration}
+            className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded-full transition-all hover:scale-105 shadow-lg mt-4"
+          >
+            <Music className="w-5 h-5" />
+            ▶ Play celebration music
+          </button>
+        )}
+        {celebrationError && (
+          <p className="text-xs text-white/50 mt-2">
+            Add celebration-music.mp3 to /public for fanfare
+          </p>
+        )}
       </div>
     </div>
   );

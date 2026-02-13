@@ -18,6 +18,7 @@ import {
   TimerOff,
   Type,
   ImagePlus,
+  Loader2,
 } from "lucide-react";
 
 const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
@@ -37,6 +38,8 @@ export default function HostPage() {
   const [gameState, setGameState] = useState<HostGameState | null>(null);
   const [confirmReveal, setConfirmReveal] = useState(false);
   const [phraseInput, setPhraseInput] = useState("");
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   useEffect(() => {
     const pusher = getPusherClient();
@@ -107,18 +110,34 @@ export default function HostPage() {
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file || !file.type.startsWith("image/")) return;
+      setUploadingPhoto(true);
+      setPhotoError(null);
       const reader = new FileReader();
       reader.onload = async () => {
-        const dataUrl = reader.result as string;
-        const res = await gameAction({
-          action: "set_winner_photo",
-          winnerPhotoDataUrl: dataUrl,
-        });
-        if (res.ok) {
-          setGameState((prev) =>
-            prev ? { ...prev, winnerPhotoDataUrl: dataUrl } : prev
-          );
+        try {
+          const dataUrl = reader.result as string;
+          const res = await gameAction({
+            action: "set_winner_photo",
+            winnerPhotoDataUrl: dataUrl,
+          });
+          if (res.ok) {
+            // Use URL from response (blob URL in prod, data URL locally)
+            const url = res.winnerPhotoDataUrl ?? dataUrl;
+            setGameState((prev) =>
+              prev ? { ...prev, winnerPhotoDataUrl: url } : prev
+            );
+          } else {
+            setPhotoError(res.error ?? "Upload failed");
+          }
+        } catch {
+          setPhotoError("Upload failed");
+        } finally {
+          setUploadingPhoto(false);
         }
+      };
+      reader.onerror = () => {
+        setPhotoError("Failed to read file");
+        setUploadingPhoto(false);
       };
       reader.readAsDataURL(file);
       e.target.value = "";
@@ -212,14 +231,23 @@ export default function HostPage() {
                 accept="image/*"
                 onChange={handlePhotoUpload}
                 className="hidden"
+                disabled={uploadingPhoto}
               />
-              {gameState?.winnerPhotoDataUrl ? (
+              {uploadingPhoto ? (
                 <div className="flex items-center gap-4">
-                  <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-slate-600 shrink-0">
+                  <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-slate-600 shrink-0 flex items-center justify-center bg-slate-700/50">
+                    <Loader2 className="w-10 h-10 text-amber-400 animate-spin" />
+                  </div>
+                  <span className="text-slate-500 text-sm">Uploading…</span>
+                </div>
+              ) : gameState?.winnerPhotoDataUrl ? (
+                <div className="flex items-center gap-4">
+                  <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-slate-600 shrink-0 bg-slate-700/50">
                     <img
                       src={gameState.winnerPhotoDataUrl}
                       alt="Winner preview"
                       className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
                     />
                   </div>
                   <button
@@ -239,6 +267,12 @@ export default function HostPage() {
                 </button>
               )}
             </div>
+            {photoError && (
+              <p className="mt-2 text-sm text-amber-400/90 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                {photoError}
+              </p>
+            )}
           </div>
 
           <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-2xl p-5 max-w-md mx-auto">
