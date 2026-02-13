@@ -62,6 +62,10 @@ export default function BroadcastPage() {
       setMusicReady(true);
       setMusicError(true);
     });
+    // Ensure seamless replay if loop property doesn't fire
+    audio.addEventListener("ended", () => {
+      if (audioRef.current && audio.duration) audio.play();
+    });
 
     return () => {
       audio.pause();
