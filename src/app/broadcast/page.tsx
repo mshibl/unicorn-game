@@ -50,7 +50,9 @@ export default function BroadcastPage() {
   }, []);
 
   useEffect(() => {
-    const audio = new Audio("/game-show-music.mp3");
+    const musicUrl =
+      process.env.NEXT_PUBLIC_GAME_SHOW_MUSIC_URL || "/game-show-music.mp3";
+    const audio = new Audio(musicUrl);
     audioRef.current = audio;
     audio.loop = true;
     audio.volume = 0.4;
