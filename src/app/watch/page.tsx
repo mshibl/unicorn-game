@@ -76,7 +76,7 @@ export default function WatchPage() {
     );
     musicRef.current = audio;
     audio.loop = true;
-    audio.volume = 0.4;
+    audio.volume = 0.1;
     audio.addEventListener("canplaythrough", () => setMusicReady(true));
     audio.addEventListener("error", () => setMusicReady(true));
     audio.addEventListener("ended", () => {
@@ -271,7 +271,7 @@ export default function WatchPage() {
       }
     } else {
       // Restore normal music volume when buzzer is released
-      music.volume = 0.4;
+      music.volume = 0.1;
     }
   }, [gameState?.buzzedPlayerId]);
 
@@ -286,6 +286,9 @@ export default function WatchPage() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white p-6">
+      <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-linear-to-r from-amber-300 to-emerald-400 text-center mb-6">
+        Guess The Unicorn Name
+      </h1>
       {/* Dancing unicorn strolling along the bottom (board only, not on final reveal) */}
       {gameState?.showDancingUnicorn && (
         <div

@@ -237,7 +237,7 @@ export default function PlayerPage() {
         <div className="w-full max-w-md">
           <div className="text-center mb-10">
             <h1 className="text-5xl font-extrabold text-transparent bg-clip-text bg-linear-to-r from-amber-300 to-emerald-400 mb-3">
-              Unicorn Game
+              Guess The Unicorn Name
             </h1>
             <p className="text-slate-400 text-lg">
               Enter your name to join the game
@@ -293,6 +293,9 @@ export default function PlayerPage() {
         )}
         <div className="w-full max-w-lg text-center">
           <div className="mb-8">
+            <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-linear-to-r from-amber-300 to-emerald-400 mb-6">
+              Guess The Unicorn Name
+            </h1>
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500/20 border border-emerald-500/30 rounded-full text-emerald-400 text-sm font-medium mb-6">
               <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
               Connected
@@ -402,6 +405,10 @@ export default function PlayerPage() {
               </div>
             )}
           </div>
+
+          <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-linear-to-r from-amber-300 to-emerald-400 text-center">
+            Guess The Unicorn Name
+          </h1>
 
           <div className="w-full max-w-3xl">
             <GameBoard maskedPhrase={gameState.maskedPhrase} />

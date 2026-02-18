@@ -37,6 +37,9 @@ export default function HostPage() {
   const [phraseInput, setPhraseInput] = useState("");
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
+  // Local preview from the file we just read - bypasses CDN/browser cache when blob URL is overwritten
+  const [localPreviewDataUrl, setLocalPreviewDataUrl] = useState<string | null>(null);
+  const [localPhotoFileName, setLocalPhotoFileName] = useState<string | null>(null);
 
   useEffect(() => {
     const pusher = getPusherClient();
@@ -132,6 +135,8 @@ export default function HostPage() {
             setGameState((prev) =>
               prev ? { ...prev, winnerPhotoDataUrl: url } : prev
             );
+            setLocalPreviewDataUrl(dataUrl);
+            setLocalPhotoFileName(file.name);
           } else {
             setPhotoError(res.error ?? "Upload failed");
           }
@@ -163,11 +168,14 @@ export default function HostPage() {
   return (
     <div className="min-h-screen bg-linear-to-b from-slate-900 via-slate-900 to-slate-950 p-6">
       <div className="max-w-[1600px] mx-auto">
+        <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-linear-to-r from-amber-300 to-emerald-400 text-center mb-6">
+          Guess The Unicorn Name
+        </h1>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div className="text-center sm:text-left">
-            <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-linear-to-r from-purple-400 to-pink-400 mb-2">
+            <h2 className="text-3xl font-extrabold text-transparent bg-clip-text bg-linear-to-r from-purple-400 to-pink-400 mb-2">
               Host Dashboard
-            </h1>
+            </h2>
             <p className="text-slate-500">
               Control the game from here. Players won&apos;t see this page.
             </p>
@@ -254,18 +262,25 @@ export default function HostPage() {
                 <div className="flex items-center gap-4">
                   <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-slate-600 shrink-0 bg-slate-700/50">
                     <img
-                      src={gameState.winnerPhotoDataUrl}
+                      src={localPreviewDataUrl ?? gameState.winnerPhotoDataUrl}
                       alt="Winner preview"
                       className="w-full h-full object-cover"
                       referrerPolicy="no-referrer"
                     />
                   </div>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white text-sm font-medium rounded-lg transition-colors"
-                  >
-                    Change photo
-                  </button>
+                  <div className="flex flex-col gap-1 min-w-0">
+                    {localPhotoFileName && (
+                      <span className="text-sm text-slate-400 truncate" title={localPhotoFileName}>
+                        {localPhotoFileName}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white text-sm font-medium rounded-lg transition-colors self-start"
+                    >
+                      Change photo
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <button
