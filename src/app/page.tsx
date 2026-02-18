@@ -30,6 +30,7 @@ export default function PlayerPage() {
   const [buzzerFlash, setBuzzerFlash] = useState(false);
   const [joining, setJoining] = useState(false);
   const playerIdRef = useRef<string | null>(null);
+  const buzzerSoundRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     let id = sessionStorage.getItem("playerId");
@@ -39,6 +40,17 @@ export default function PlayerPage() {
     }
     setPlayerId(id);
     playerIdRef.current = id;
+  }, []);
+
+  useEffect(() => {
+    const buzzer = new Audio(
+      process.env.NEXT_PUBLIC_BUZZER_SOUND_URL || "/buzzer-sound.mp3"
+    );
+    buzzer.volume = 0.8;
+    buzzerSoundRef.current = buzzer;
+    return () => {
+      buzzerSoundRef.current = null;
+    };
   }, []);
 
   useEffect(() => {
@@ -84,30 +96,77 @@ export default function PlayerPage() {
     const savedName = sessionStorage.getItem("playerName");
     if (savedName && playerId) {
       setPlayerName(savedName);
+      // Auto-rejoin: check if player is in game, if not, rejoin them
       gameAction({ action: "get_state" }).then((res) => {
         if (res.state) {
           const isInGame = res.state.players.some(
             (p: { id: string }) => p.id === playerId
           );
           if (isInGame) {
+            // Player is already in game, just restore their state
             setJoined(true);
             setGameState(res.state);
+          } else {
+            // Player not in game (e.g., server restart), rejoin them automatically
+            gameAction({
+              action: "join",
+              playerId,
+              playerName: savedName.trim(),
+            }).then((joinRes) => {
+              if (joinRes.ok) {
+                setJoined(true);
+                if (joinRes.state) setGameState(joinRes.state);
+              }
+            });
           }
         }
       });
     }
   }, [playerId]);
 
+  // Remove player when they leave the page
+  useEffect(() => {
+    if (!joined || !playerIdRef.current) return;
+
+    const removePlayer = () => {
+      // Use sendBeacon for reliable delivery during page unload
+      const data = JSON.stringify({
+        action: "remove_player",
+        playerId: playerIdRef.current,
+      });
+      navigator.sendBeacon(
+        "/api/game/action",
+        new Blob([data], { type: "application/json" })
+      );
+    };
+
+    // Use beforeunload for page navigation/close
+    window.addEventListener("beforeunload", removePlayer);
+
+    return () => {
+      window.removeEventListener("beforeunload", removePlayer);
+      // Also try to remove on component unmount (e.g., React navigation)
+      if (playerIdRef.current) {
+        removePlayer();
+      }
+    };
+  }, [joined]);
+
   // Spacebar buzzer
   useEffect(() => {
     if (!joined || !gameState || gameState.status !== "active") return;
     const skipTurn = gameState.skipTurnAfterGuess !== false;
     const iAmOnCooldown = skipTurn && gameState.lastGuesserId === playerIdRef.current;
-    if (iAmOnCooldown) return;
+    if (iAmOnCooldown || gameState.buzzersPaused) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === "Space" && gameState.buzzedPlayerId === null) {
         e.preventDefault();
+        const buzzer = buzzerSoundRef.current;
+        if (buzzer) {
+          buzzer.currentTime = 0;
+          buzzer.play().catch(() => {});
+        }
         gameAction({ action: "buzz", playerId: playerIdRef.current });
       }
     };
@@ -153,6 +212,13 @@ export default function PlayerPage() {
     if (!gameState || gameState.buzzedPlayerId !== null) return;
     const skipTurn = gameState.skipTurnAfterGuess !== false;
     if (skipTurn && gameState.lastGuesserId === playerIdRef.current) return;
+    if (gameState.buzzersPaused) return;
+    // Play buzzer sound immediately on click (user interaction unlocks audio)
+    const buzzer = buzzerSoundRef.current;
+    if (buzzer) {
+      buzzer.currentTime = 0;
+      buzzer.play().catch(() => {});
+    }
     await gameAction({ action: "buzz", playerId: playerIdRef.current });
   }, [gameState]);
 
@@ -212,6 +278,19 @@ export default function PlayerPage() {
   if (!gameState || gameState.status === "waiting") {
     return (
       <div className="min-h-screen bg-linear-to-b from-slate-900 via-slate-900 to-slate-950 flex items-center justify-center p-4">
+        {gameState?.showDancingUnicorn && (
+          <div
+            className="fixed bottom-6 left-0 right-0 h-16 pointer-events-none z-40 overflow-hidden"
+            aria-hidden
+          >
+            <img
+              src="/dancing-unicorn.gif"
+              alt=""
+              className="absolute h-14 w-auto object-contain"
+              style={{ animation: "unicorn-stroll 35s linear infinite" }}
+            />
+          </div>
+        )}
         <div className="w-full max-w-lg text-center">
           <div className="mb-8">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-500/20 border border-emerald-500/30 rounded-full text-emerald-400 text-sm font-medium mb-6">
@@ -235,6 +314,8 @@ export default function PlayerPage() {
               players={gameState?.players ?? []}
               buzzedPlayerId={null}
               currentPlayerId={playerId ?? undefined}
+              teamMode={gameState?.teamMode ?? false}
+              teamAssignments={gameState?.teamAssignments ?? {}}
             />
           </div>
 
@@ -254,10 +335,13 @@ export default function PlayerPage() {
   const canBuzz =
     gameState.status === "active" &&
     gameState.buzzedPlayerId === null &&
-    !iAmOnCooldown;
+    !iAmOnCooldown &&
+    !gameState.buzzersPaused;
 
   const cooldownReason = iAmOnCooldown
     ? "You just guessed — another player must buzz first this round."
+    : gameState.buzzersPaused
+    ? "Buzzers are paused — wait for host to enable them"
     : undefined;
 
   return (
@@ -266,6 +350,19 @@ export default function PlayerPage() {
         buzzerFlash ? "ring-4 ring-inset ring-amber-400/30" : ""
       }`}
     >
+      {gameState.showDancingUnicorn && (
+        <div
+          className="fixed bottom-6 left-0 right-0 h-16 pointer-events-none z-40 overflow-hidden"
+          aria-hidden
+        >
+          <img
+            src="/dancing-unicorn.gif"
+            alt=""
+            className="absolute h-14 w-auto object-contain"
+            style={{ animation: "unicorn-stroll 35s linear infinite" }}
+          />
+        </div>
+      )}
       <div className="max-w-7xl mx-auto px-4 py-6 flex gap-6 min-h-screen">
         {/* ── Left: Players ───────────────────────────────────────── */}
         <aside className="w-64 shrink-0">
@@ -280,6 +377,8 @@ export default function PlayerPage() {
               players={gameState.players}
               buzzedPlayerId={gameState.buzzedPlayerId}
               currentPlayerId={playerId ?? undefined}
+              teamMode={gameState.teamMode ?? false}
+              teamAssignments={gameState.teamAssignments ?? {}}
             />
           </div>
         </aside>

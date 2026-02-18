@@ -3,6 +3,8 @@ export interface Player {
   name: string;
 }
 
+export type Team = "blue" | "red";
+
 export interface GameState {
   status: "waiting" | "active" | "revealed";
   players: Player[];
@@ -11,7 +13,11 @@ export interface GameState {
   guessedLetters: string[];
   targetPhrase: string;
   skipTurnAfterGuess: boolean;
+  buzzersPaused: boolean;
   winnerPhotoDataUrl: string; // Base64 data URL from host upload
+  teamMode: boolean;
+  teamAssignments: Record<string, Team>; // playerId -> team
+  showDancingUnicorn: boolean;
 }
 
 const gameState: GameState = {
@@ -20,9 +26,13 @@ const gameState: GameState = {
   buzzedPlayerId: null,
   lastGuesserId: null,
   guessedLetters: [],
-  targetPhrase: "MARK SHIBLEY",
-  skipTurnAfterGuess: true,
+  targetPhrase: "THE UNICORN",
+  skipTurnAfterGuess: false,
+  buzzersPaused: false,
   winnerPhotoDataUrl: "",
+  teamMode: false,
+  teamAssignments: {},
+  showDancingUnicorn: true,
 };
 
 export function getGameState(): GameState {
@@ -35,6 +45,23 @@ export function resetGameState(): void {
   gameState.buzzedPlayerId = null;
   gameState.lastGuesserId = null;
   gameState.guessedLetters = [];
+  gameState.buzzersPaused = false;
+  gameState.teamAssignments = {};
+  gameState.showDancingUnicorn = true;
+}
+
+export function assignTeams(): void {
+  if (!gameState.teamMode || gameState.players.length < 2) {
+    gameState.teamAssignments = {};
+    return;
+  }
+  
+  // Alternating assignment: first player -> blue, second -> red, third -> blue, etc.
+  const assignments: Record<string, Team> = {};
+  gameState.players.forEach((player, index) => {
+    assignments[player.id] = index % 2 === 0 ? "blue" : "red";
+  });
+  gameState.teamAssignments = assignments;
 }
 
 export function getClientGameState() {
@@ -45,7 +72,11 @@ export function getClientGameState() {
     lastGuesserId: gameState.lastGuesserId,
     guessedLetters: gameState.guessedLetters,
     skipTurnAfterGuess: gameState.skipTurnAfterGuess,
+    buzzersPaused: gameState.buzzersPaused,
     winnerPhotoDataUrl: gameState.winnerPhotoDataUrl,
+    teamMode: gameState.teamMode,
+    teamAssignments: gameState.teamAssignments,
+    showDancingUnicorn: gameState.showDancingUnicorn,
     phraseLength: gameState.targetPhrase.length,
     maskedPhrase: gameState.targetPhrase
       .split("")

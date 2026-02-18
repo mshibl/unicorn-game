@@ -7,10 +7,14 @@ interface Player {
   name: string;
 }
 
+type Team = "blue" | "red";
+
 interface PlayerListProps {
   players: Player[];
   buzzedPlayerId: string | null;
   currentPlayerId?: string;
+  teamMode?: boolean;
+  teamAssignments?: Record<string, Team>;
   onUnbuzz?: () => void;
   onRemovePlayer?: (playerId: string) => void;
 }
@@ -19,6 +23,8 @@ export default function PlayerList({
   players,
   buzzedPlayerId,
   currentPlayerId,
+  teamMode = false,
+  teamAssignments = {},
   onUnbuzz,
   onRemovePlayer,
 }: PlayerListProps) {
@@ -31,9 +37,17 @@ export default function PlayerList({
   }
 
   // Buzzed user first, then everyone else
+  // In team mode, group by team (blue first, then red)
   const sorted = [...players].sort((a, b) => {
     if (a.id === buzzedPlayerId) return -1;
     if (b.id === buzzedPlayerId) return 1;
+    if (teamMode) {
+      const teamA = teamAssignments[a.id] || "blue";
+      const teamB = teamAssignments[b.id] || "blue";
+      if (teamA !== teamB) {
+        return teamA === "blue" ? -1 : 1;
+      }
+    }
     return 0;
   });
 
@@ -42,6 +56,8 @@ export default function PlayerList({
       {sorted.map((player) => {
         const isBuzzed = player.id === buzzedPlayerId;
         const isMe = player.id === currentPlayerId;
+        const team = teamMode ? teamAssignments[player.id] : null;
+        const teamColor = team === "blue" ? "blue" : team === "red" ? "red" : null;
 
         return (
           <div
@@ -51,6 +67,10 @@ export default function PlayerList({
               ${
                 isBuzzed
                   ? "bg-amber-500/20 border border-amber-400/50 shadow-[0_0_20px_rgba(251,191,36,0.15)]"
+                  : teamMode && teamColor === "blue"
+                  ? "bg-blue-500/10 border border-blue-500/30"
+                  : teamMode && teamColor === "red"
+                  ? "bg-red-500/10 border border-red-500/30"
                   : "bg-slate-800/50 border border-slate-700/50"
               }
               ${isMe ? "ring-1 ring-cyan-400/30" : ""}
@@ -59,26 +79,53 @@ export default function PlayerList({
             <div
               className={`
               flex items-center justify-center w-8 h-8 rounded-full shrink-0
-              ${isBuzzed ? "bg-amber-500/30" : "bg-slate-700"}
+              ${
+                isBuzzed
+                  ? "bg-amber-500/30"
+                  : teamMode && teamColor === "blue"
+                  ? "bg-blue-500/30"
+                  : teamMode && teamColor === "red"
+                  ? "bg-red-500/30"
+                  : "bg-slate-700"
+              }
             `}
             >
               {isBuzzed ? (
                 <Zap className="w-4 h-4 text-amber-400 animate-pulse" />
               ) : (
-                <User className="w-4 h-4 text-slate-400" />
+                <User
+                  className={`w-4 h-4 ${
+                    teamMode && teamColor === "blue"
+                      ? "text-blue-400"
+                      : teamMode && teamColor === "red"
+                      ? "text-red-400"
+                      : "text-slate-400"
+                  }`}
+                />
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <span
-                className={`font-medium truncate block ${
-                  isBuzzed ? "text-amber-300" : "text-slate-300"
-                }`}
-              >
-                {player.name}
-                {isMe && (
-                  <span className="text-xs text-cyan-400 ml-2">(you)</span>
+              <div className="flex items-center gap-2">
+                {teamMode && teamColor && (
+                  <span
+                    className={`text-xs font-bold uppercase tracking-wider shrink-0 ${
+                      teamColor === "blue" ? "text-blue-400" : "text-red-400"
+                    }`}
+                  >
+                    {teamColor}
+                  </span>
                 )}
-              </span>
+                <span
+                  className={`font-medium truncate ${
+                    isBuzzed ? "text-amber-300" : "text-slate-300"
+                  }`}
+                >
+                  {player.name}
+                  {isMe && (
+                    <span className="text-xs text-cyan-400 ml-2">(you)</span>
+                  )}
+                </span>
+              </div>
             </div>
             {isBuzzed && (
               <span className="text-xs font-semibold text-amber-400 uppercase tracking-wider animate-pulse shrink-0">

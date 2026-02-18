@@ -5,6 +5,7 @@ import {
   getGameState,
   getClientGameState,
   resetGameState,
+  assignTeams,
 } from "@/lib/game-state";
 
 const CHANNEL = "game-channel";
@@ -32,6 +33,10 @@ export async function POST(req: NextRequest) {
         }
         if (!state.players.find((p) => p.id === playerId)) {
           state.players.push({ id: playerId, name: playerName });
+          // Auto-assign team if team mode is enabled
+          if (state.teamMode) {
+            assignTeams();
+          }
         }
         await broadcastState();
         return NextResponse.json({ ok: true, state: getClientGameState() });
@@ -42,6 +47,11 @@ export async function POST(req: NextRequest) {
         state.buzzedPlayerId = null;
         state.lastGuesserId = null;
         state.guessedLetters = [];
+        state.buzzersPaused = false;
+        // Auto-assign teams if team mode is enabled
+        if (state.teamMode) {
+          assignTeams();
+        }
         await broadcastState();
         return NextResponse.json({ ok: true });
       }
@@ -52,6 +62,12 @@ export async function POST(req: NextRequest) {
           return NextResponse.json(
             { error: "Game not active" },
             { status: 400 }
+          );
+        }
+        if (state.buzzersPaused) {
+          return NextResponse.json(
+            { error: "Buzzers are paused — wait for host to enable them" },
+            { status: 403 }
           );
         }
         // Cooldown (when enabled): last guesser cannot buzz this turn
@@ -99,6 +115,7 @@ export async function POST(req: NextRequest) {
         }
         state.lastGuesserId = guesserId; // Cooldown: they can't buzz next turn
         state.buzzedPlayerId = null;
+        state.buzzersPaused = true; // Automatically pause buzzers after a letter is guessed
         await broadcastState();
         return NextResponse.json({ ok: true });
       }
@@ -126,23 +143,38 @@ export async function POST(req: NextRequest) {
         state.players = state.players.filter((p) => p.id !== toRemove);
         if (state.buzzedPlayerId === toRemove) state.buzzedPlayerId = null;
         if (state.lastGuesserId === toRemove) state.lastGuesserId = null;
+        delete state.teamAssignments[toRemove];
+        // Reassign teams if team mode is enabled
+        if (state.teamMode) {
+          assignTeams();
+        }
         await broadcastState();
         return NextResponse.json({ ok: true });
       }
 
       case "reveal_letter": {
-        const letter = (body.letter as string)?.toUpperCase?.();
-        if (!letter || !/^[A-Z]$/.test(letter)) {
-          return NextResponse.json(
-            { error: "Invalid letter" },
-            { status: 400 }
-          );
-        }
         if (state.status !== "active") {
           return NextResponse.json(
             { error: "Game not active" },
             { status: 400 }
           );
+        }
+        let letter = (body.letter as string)?.toUpperCase?.();
+        if (!letter || !/^[A-Z]$/.test(letter)) {
+          // Auto-pick: a letter in the phrase that hasn't been guessed yet
+          const lettersInPhrase = [
+            ...new Set(
+              state.targetPhrase
+                .toUpperCase()
+                .replace(/[^A-Z]/g, "")
+                .split("")
+            ),
+          ];
+          const available = lettersInPhrase.filter(
+            (l) => !state.guessedLetters.includes(l)
+          );
+          if (available.length === 0) return NextResponse.json({ ok: true });
+          letter = available[Math.floor(Math.random() * available.length)];
         }
         if (!state.guessedLetters.includes(letter)) {
           state.guessedLetters.push(letter);
@@ -202,6 +234,7 @@ export async function POST(req: NextRequest) {
             const blob = await put("unicorn-game/winner-photo", buffer, {
               access: "public",
               contentType,
+              allowOverwrite: true,
             });
             state.winnerPhotoDataUrl = blob.url;
           } catch (err) {
@@ -229,6 +262,10 @@ export async function POST(req: NextRequest) {
           );
         }
         state.skipTurnAfterGuess = enabled;
+        // When disabling skip turn, clear the cooldown so players can buzz immediately
+        if (!enabled) {
+          state.lastGuesserId = null;
+        }
         await broadcastState();
         return NextResponse.json({ ok: true });
       }
@@ -248,6 +285,49 @@ export async function POST(req: NextRequest) {
           );
         }
         state.targetPhrase = phrase.toUpperCase();
+        await broadcastState();
+        return NextResponse.json({ ok: true });
+      }
+
+      case "toggle_buzzers_pause": {
+        state.buzzersPaused = !state.buzzersPaused;
+        await broadcastState();
+        return NextResponse.json({ ok: true });
+      }
+
+      case "set_dancing_unicorn": {
+        const enabled = body.showDancingUnicorn;
+        if (typeof enabled !== "boolean") {
+          return NextResponse.json(
+            { error: "showDancingUnicorn must be boolean" },
+            { status: 400 }
+          );
+        }
+        state.showDancingUnicorn = enabled;
+        await broadcastState();
+        return NextResponse.json({ ok: true });
+      }
+
+      case "set_team_mode": {
+        const enabled = body.teamMode;
+        if (typeof enabled !== "boolean") {
+          return NextResponse.json(
+            { error: "teamMode must be boolean" },
+            { status: 400 }
+          );
+        }
+        if (state.status !== "waiting") {
+          return NextResponse.json(
+            { error: "Can only change team mode before game starts" },
+            { status: 400 }
+          );
+        }
+        state.teamMode = enabled;
+        if (enabled) {
+          assignTeams();
+        } else {
+          state.teamAssignments = {};
+        }
         await broadcastState();
         return NextResponse.json({ ok: true });
       }

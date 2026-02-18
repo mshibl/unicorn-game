@@ -5,7 +5,6 @@ import { getPusherClient } from "@/lib/pusher-client";
 import type { ClientGameState } from "@/lib/game-state";
 import PlayerList from "@/components/PlayerList";
 import GameBoard from "@/components/GameBoard";
-import FinalReveal from "@/components/FinalReveal";
 import { useRef } from "react";
 import {
   Play,
@@ -15,13 +14,11 @@ import {
   Zap,
   AlertTriangle,
   Award,
-  TimerOff,
   Type,
   ImagePlus,
   Loader2,
+  Pause,
 } from "lucide-react";
-
-const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
 type HostGameState = ClientGameState & { targetPhrase?: string };
 
@@ -74,16 +71,13 @@ export default function HostPage() {
     await gameAction({ action: "clear_buzzer" });
   }, []);
 
-  const handleClearCooldown = useCallback(async () => {
-    await gameAction({ action: "clear_cooldown" });
-  }, []);
 
   const handleRemovePlayer = useCallback(async (playerId: string) => {
     await gameAction({ action: "remove_player", playerId });
   }, []);
 
-  const handleRevealLetter = useCallback(async (letter: string) => {
-    await gameAction({ action: "reveal_letter", letter });
+  const handleRevealLetter = useCallback(async () => {
+    await gameAction({ action: "reveal_letter" });
   }, []);
 
   const handleReveal = useCallback(async () => {
@@ -102,6 +96,18 @@ export default function HostPage() {
 
   const handleSetSkipTurn = useCallback(async (enabled: boolean) => {
     await gameAction({ action: "set_skip_turn", skipTurnAfterGuess: enabled });
+  }, []);
+
+  const handleSetTeamMode = useCallback(async (enabled: boolean) => {
+    await gameAction({ action: "set_team_mode", teamMode: enabled });
+  }, []);
+
+  const handleSetDancingUnicorn = useCallback(async (enabled: boolean) => {
+    await gameAction({ action: "set_dancing_unicorn", showDancingUnicorn: enabled });
+  }, []);
+
+  const handleToggleBuzzersPause = useCallback(async () => {
+    await gameAction({ action: "toggle_buzzers_pause" });
   }, []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -154,40 +160,44 @@ export default function HostPage() {
     }
   }, [phraseInput]);
 
-  if (gameState?.status === "revealed") {
-    return (
-      <div className="relative">
-        <FinalReveal
-          fullName={gameState.maskedPhrase}
-          winnerPhotoSrc={gameState.winnerPhotoDataUrl || undefined}
-        />
-        <div className="fixed bottom-8 right-8 z-[100]">
-          <button
-            onClick={handleReset}
-            className="flex items-center gap-2 px-6 py-3 bg-slate-800/90 hover:bg-slate-700 border border-slate-600 rounded-xl text-slate-300 font-medium transition-all hover:scale-105 backdrop-blur shadow-2xl"
-          >
-            <RotateCcw className="w-5 h-5" />
-            Reset Game
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-linear-to-b from-slate-900 via-slate-900 to-slate-950 p-6">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-linear-to-r from-purple-400 to-pink-400 mb-2">
-            Host Dashboard
-          </h1>
-          <p className="text-slate-500">
-            Control the game from here. Players won&apos;t see this page.
-          </p>
+      <div className="max-w-[1600px] mx-auto">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div className="text-center sm:text-left">
+            <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-linear-to-r from-purple-400 to-pink-400 mb-2">
+              Host Dashboard
+            </h1>
+            <p className="text-slate-500">
+              Control the game from here. Players won&apos;t see this page.
+            </p>
+          </div>
+          <div className="flex justify-center sm:justify-end shrink-0">
+            <div
+              className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-medium text-sm uppercase tracking-wider border ${
+                !gameState || gameState.status === "waiting"
+                  ? "bg-slate-700/50 border-slate-600 text-slate-300"
+                  : gameState.status === "active"
+                  ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
+                  : "bg-amber-500/20 border-amber-500/40 text-amber-300"
+              }`}
+            >
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  !gameState || gameState.status === "waiting"
+                    ? "bg-slate-400"
+                    : gameState.status === "active"
+                    ? "bg-emerald-400 animate-pulse"
+                    : "bg-amber-400"
+                }`}
+              />
+              {gameState?.status ?? "waiting"}
+            </div>
+          </div>
         </div>
 
-        <div className="mb-8 space-y-6">
-          <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-2xl p-5 max-w-md mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+          <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-2xl p-5">
             <div className="flex items-center gap-2 text-slate-400 mb-3">
               <Award className="w-5 h-5" />
               <span className="font-medium">Unicorn Name</span>
@@ -206,7 +216,7 @@ export default function HostPage() {
               {gameState?.status === "waiting" && (
                 <button
                   onClick={handleSetPhrase}
-                  className="px-4 py-2.5 bg-amber-500/80 hover:bg-amber-500 text-slate-900 font-medium rounded-xl transition-colors"
+                  className="px-4 py-2.5 bg-amber-500/80 hover:bg-amber-500 text-slate-900 font-medium rounded-xl transition-colors shrink-0"
                 >
                   Save
                 </button>
@@ -219,7 +229,7 @@ export default function HostPage() {
             )}
           </div>
 
-          <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-2xl p-5 max-w-md mx-auto">
+          <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-2xl p-5">
             <div className="flex items-center gap-2 text-slate-400 mb-3">
               <ImagePlus className="w-5 h-5" />
               <span className="font-medium">Unicorn Photo</span>
@@ -275,9 +285,9 @@ export default function HostPage() {
             )}
           </div>
 
-          <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-2xl p-5 max-w-md mx-auto">
+          <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-2xl p-5">
             <div className="flex items-center justify-between gap-4">
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="font-medium text-slate-300">Skip turn after guess</p>
                 <p className="text-xs text-slate-500 mt-0.5">
                   When on, the player who just guessed must wait for someone else to buzz first
@@ -305,32 +315,101 @@ export default function HostPage() {
               </button>
             </div>
           </div>
-        </div>
 
-        <div className="flex justify-center mb-8">
-          <div
-            className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-full font-medium text-sm uppercase tracking-wider border ${
-              !gameState || gameState.status === "waiting"
-                ? "bg-slate-700/50 border-slate-600 text-slate-300"
-                : gameState.status === "active"
-                ? "bg-emerald-500/20 border-emerald-500/40 text-emerald-300"
-                : "bg-amber-500/20 border-amber-500/40 text-amber-300"
-            }`}
-          >
-            <div
-              className={`w-2 h-2 rounded-full ${
-                !gameState || gameState.status === "waiting"
-                  ? "bg-slate-400"
-                  : gameState.status === "active"
-                  ? "bg-emerald-400 animate-pulse"
-                  : "bg-amber-400"
-              }`}
-            />
-            {gameState?.status ?? "waiting"}
+          <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-2xl p-5">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-slate-300">Dancing Unicorn</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Show a small unicorn strolling along the bottom of the board
+                </p>
+              </div>
+              <button
+                onClick={() =>
+                  handleSetDancingUnicorn(!(gameState?.showDancingUnicorn ?? false))
+                }
+                className={`relative shrink-0 w-14 h-8 rounded-full transition-colors ${
+                  gameState?.showDancingUnicorn
+                    ? "bg-pink-500"
+                    : "bg-slate-600"
+                }`}
+                role="switch"
+                aria-checked={gameState?.showDancingUnicorn ?? false}
+              >
+                <span
+                  className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform ${
+                    gameState?.showDancingUnicorn ? "left-7" : "left-1"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-2xl p-5">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-slate-300">Team Mode</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Divide players into Blue and Red teams. Teams are auto-assigned when game starts.
+                </p>
+              </div>
+              <button
+                onClick={() =>
+                  handleSetTeamMode(!(gameState?.teamMode ?? false))
+                }
+                disabled={gameState?.status !== "waiting"}
+                className={`relative shrink-0 w-14 h-8 rounded-full transition-colors ${
+                  gameState?.teamMode
+                    ? "bg-blue-600"
+                    : "bg-slate-600"
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                role="switch"
+                aria-checked={gameState?.teamMode ?? false}
+                title={
+                  gameState?.status !== "waiting"
+                    ? "Can only change team mode before game starts"
+                    : undefined
+                }
+              >
+                <span
+                  className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform ${
+                    gameState?.teamMode ? "left-7" : "left-1"
+                  }`}
+                />
+              </button>
+            </div>
+            {gameState?.teamMode && gameState.players.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-slate-700/50">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-blue-500" />
+                    <span className="text-slate-400">
+                      Blue:{" "}
+                      {
+                        gameState.players.filter(
+                          (p) => gameState.teamAssignments?.[p.id] === "blue"
+                        ).length
+                      }
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full bg-red-500" />
+                    <span className="text-slate-400">
+                      Red:{" "}
+                      {
+                        gameState.players.filter(
+                          (p) => gameState.teamAssignments?.[p.id] === "red"
+                        ).length
+                      }
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6 mb-6">
           <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-2xl p-6">
             <div className="flex items-center gap-2 text-slate-400 mb-4">
               <Users className="w-5 h-5" />
@@ -341,6 +420,8 @@ export default function HostPage() {
             <PlayerList
               players={gameState?.players ?? []}
               buzzedPlayerId={gameState?.buzzedPlayerId ?? null}
+              teamMode={gameState?.teamMode ?? false}
+              teamAssignments={gameState?.teamAssignments ?? {}}
               onUnbuzz={handleUnbuzz}
               onRemovePlayer={handleRemovePlayer}
             />
@@ -371,7 +452,7 @@ export default function HostPage() {
           </div>
         </div>
 
-        <div className="mt-8 bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-2xl p-6">
+        <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-2xl p-6">
           <h3 className="text-slate-400 font-medium mb-6 text-center">
             Game Controls
           </h3>
@@ -387,6 +468,14 @@ export default function HostPage() {
             </button>
 
             <button
+              onClick={handleReset}
+              className="flex items-center gap-2 px-6 py-3 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 border border-slate-600"
+            >
+              <RotateCcw className="w-5 h-5" />
+              Reset
+            </button>
+
+            <button
               onClick={handleUnbuzz}
               disabled={!gameState?.buzzedPlayerId}
               className="flex items-center gap-2 px-6 py-3 bg-linear-to-r from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 disabled:from-slate-700 disabled:to-slate-700 disabled:text-slate-500 text-white font-bold rounded-xl transition-all duration-200 hover:shadow-[0_0_25px_rgba(59,130,246,0.3)] hover:scale-105 active:scale-95 disabled:hover:scale-100 disabled:hover:shadow-none disabled:cursor-not-allowed"
@@ -397,47 +486,43 @@ export default function HostPage() {
             </button>
 
             <button
-              onClick={handleClearCooldown}
-              disabled={!gameState?.lastGuesserId}
-              className="flex items-center gap-2 px-6 py-3 bg-slate-600 hover:bg-slate-500 disabled:bg-slate-700 disabled:text-slate-500 text-white font-bold rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 disabled:hover:scale-100 disabled:cursor-not-allowed"
-              title="Let the last guesser buzz again (for 2-player games)"
+              onClick={handleToggleBuzzersPause}
+              disabled={gameState?.status !== "active"}
+              className={`flex items-center gap-2 px-6 py-3 font-bold rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 disabled:hover:scale-100 disabled:cursor-not-allowed ${
+                gameState?.buzzersPaused
+                  ? "bg-linear-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white hover:shadow-[0_0_25px_rgba(16,185,129,0.3)]"
+                  : "bg-linear-to-r from-orange-500 to-orange-600 hover:from-orange-400 hover:to-orange-500 text-white hover:shadow-[0_0_25px_rgba(251,146,60,0.3)] disabled:from-slate-700 disabled:to-slate-700 disabled:text-slate-500 disabled:hover:shadow-none"
+              }`}
+              title={
+                gameState?.buzzersPaused
+                  ? "Enable buzzers — players can buzz in again"
+                  : "Pause buzzers — prevent players from buzzing in"
+              }
             >
-              <TimerOff className="w-5 h-5" />
-              Clear Cooldown
+              {gameState?.buzzersPaused ? (
+                <>
+                  <Play className="w-5 h-5" />
+                  Enable Buzzers
+                </>
+              ) : (
+                <>
+                  <Pause className="w-5 h-5" />
+                  Pause Buzzers
+                </>
+              )}
             </button>
 
             {(gameState?.status === "active" &&
               gameState.guessedLetters.length < 26) && (
-              <div className="flex items-center gap-2">
-                <select
-                  onChange={(e) => {
-                    const letter = e.target.value;
-                    if (letter) handleRevealLetter(letter);
-                    e.target.value = "";
-                  }}
-                  className="px-4 py-3 bg-slate-700 border border-slate-600 rounded-xl text-white font-medium focus:outline-none focus:ring-2 focus:ring-amber-400/50 cursor-pointer"
-                  title="Manually reveal a letter if game is stuck"
-                >
-                  <option value="">Reveal letter…</option>
-                  {LETTERS.filter((l) => !gameState.guessedLetters.includes(l)).map(
-                    (l) => (
-                      <option key={l} value={l}>
-                        {l}
-                      </option>
-                    )
-                  )}
-                </select>
-                <Type className="w-5 h-5 text-slate-400" />
-              </div>
+              <button
+                onClick={handleRevealLetter}
+                className="flex items-center gap-2 px-6 py-3 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-xl text-slate-300 font-bold transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-amber-400/50"
+                title="Reveal a random letter from the phrase"
+              >
+                <Type className="w-5 h-5" />
+                Reveal Letter
+              </button>
             )}
-
-            <button
-              onClick={handleReset}
-              className="flex items-center gap-2 px-6 py-3 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 border border-slate-600"
-            >
-              <RotateCcw className="w-5 h-5" />
-              Reset
-            </button>
 
             <button
               onClick={handleReveal}

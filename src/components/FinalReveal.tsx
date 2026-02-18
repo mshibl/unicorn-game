@@ -49,7 +49,7 @@ export default function FinalReveal({ fullName, winnerPhotoSrc }: FinalRevealPro
 
   useEffect(() => {
     const url =
-      process.env.NEXT_PUBLIC_CELEBRATION_MUSIC_URL || "/celebration-music.mp3";
+      process.env.NEXT_PUBLIC_CELEBRATION_MUSIC_URL || "/unicorn-reveal.mp3";
     const audio = new Audio(url);
     celebrationAudioRef.current = audio;
     audio.loop = true;
@@ -61,9 +61,12 @@ export default function FinalReveal({ fullName, winnerPhotoSrc }: FinalRevealPro
       setCelebrationError(true);
     });
 
-    audio.play().then(() => setCelebrationPlaying(true)).catch(() => {});
+    const playTimer = setTimeout(() => {
+      audio.play().then(() => setCelebrationPlaying(true)).catch(() => {});
+    }, 2000);
 
     return () => {
+      clearTimeout(playTimer);
       audio.pause();
       celebrationAudioRef.current = null;
     };
@@ -121,7 +124,7 @@ export default function FinalReveal({ fullName, winnerPhotoSrc }: FinalRevealPro
           <div className="flex items-center justify-center gap-4 sm:gap-6">
             <Star className="w-7 h-7 sm:w-8 sm:h-8 text-pink-300 animate-spin" style={{ animationDuration: "4s" }} />
             <UnicornHorn className="w-10 h-20 sm:w-12 sm:h-24 drop-shadow-[0_0_10px_rgba(236,72,153,0.6)]" />
-            <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-cyan-300" style={{ animation: "sparkle 1.5s ease-in-out infinite" }} />
+            <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 text-cyan-300" style={{ animation: "sparkle 1.5s ease-in-out infinite, spin 4s linear infinite" }} />
           </div>
         </div>
 
@@ -224,7 +227,7 @@ export default function FinalReveal({ fullName, winnerPhotoSrc }: FinalRevealPro
         )}
         {celebrationError && (
           <p className="text-xs text-white/50 mt-2">
-            Add celebration-music.mp3 to /public for fanfare
+            Add unicorn-reveal.mp3 to /public for fanfare
           </p>
         )}
       </div>
