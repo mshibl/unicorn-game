@@ -233,10 +233,10 @@ export async function POST(req: NextRequest) {
             const match = dataUrl.match(/data:image\/(\w+)/);
             const ext = match?.[1] ?? "jpeg";
             const contentType = `image/${ext}`;
-            const blob = await put("unicorn-game/winner-photo", buffer, {
+            const uniquePath = `unicorn-game/winner-photo-${Date.now()}`;
+            const blob = await put(uniquePath, buffer, {
               access: "public",
               contentType,
-              allowOverwrite: true,
             });
             state.winnerPhotoDataUrl = blob.url;
           } catch (err) {
