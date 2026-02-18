@@ -5,22 +5,11 @@ import GameBoard from "@/components/GameBoard";
 import Alphabet from "@/components/Alphabet";
 import PlayerList from "@/components/PlayerList";
 import FinalReveal from "@/components/FinalReveal";
+import type { ClientGameState } from "@/lib/game-state";
 import { Users, Loader2, Music, Pause, RotateCcw, Play } from "lucide-react";
 
-type GameState = {
-  status: "waiting" | "active" | "revealed";
-  players: { id: string; name: string }[];
-  buzzedPlayerId: string | null;
-  guessedLetters: string[];
-  maskedPhrase: string;
-  winnerPhotoDataUrl?: string;
-  teamMode?: boolean;
-  teamAssignments?: Record<string, "blue" | "red">;
-  showDancingUnicorn?: boolean;
-};
-
 export default function WatchPage() {
-  const [gameState, setGameState] = useState<GameState | null>(null);
+  const [gameState, setGameState] = useState<ClientGameState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [musicPlaying, setMusicPlaying] = useState(false);
   const [musicStarted, setMusicStarted] = useState(false);
@@ -49,6 +38,34 @@ export default function WatchPage() {
     }
   }, []);
 
+  // Auto re-enable buzzers 5 seconds after a letter is guessed (watch page keeps timer in sync)
+  const reenableTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const reenableAt = gameState?.buzzersReenableAt;
+    if (!gameState?.buzzersPaused || !reenableAt || gameState.status !== "active") {
+      if (reenableTimerRef.current) {
+        clearTimeout(reenableTimerRef.current);
+        reenableTimerRef.current = null;
+      }
+      return;
+    }
+    const delay = Math.max(0, reenableAt - Date.now());
+    reenableTimerRef.current = setTimeout(async () => {
+      await fetch("/api/game/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reenable_buzzers" }),
+      });
+      reenableTimerRef.current = null;
+    }, delay);
+    return () => {
+      if (reenableTimerRef.current) {
+        clearTimeout(reenableTimerRef.current);
+        reenableTimerRef.current = null;
+      }
+    };
+  }, [gameState?.buzzersPaused, gameState?.buzzersReenableAt, gameState?.status]);
+
   useEffect(() => {
     loadState();
 
@@ -61,7 +78,7 @@ export default function WatchPage() {
         const p = new Pusher.default(key, { cluster });
         client = p;
         const ch = p.subscribe("game-channel");
-        ch.bind("game-update", (data: GameState) => setGameState(data));
+        ch.bind("game-update", (data: ClientGameState) => setGameState(data));
       });
     }
 

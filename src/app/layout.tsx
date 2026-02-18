@@ -16,6 +16,9 @@ export const metadata: Metadata = {
   title: "Unicorn Game - Wheel of Fortune",
   description:
     "A real-time multiplayer phrase-guessing game. Buzz in, guess letters, and reveal the unicorn!",
+  icons: {
+    icon: [{ url: "/dancing-unicorn.gif", type: "image/gif" }],
+  },
 };
 
 export default function RootLayout({

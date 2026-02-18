@@ -48,6 +48,7 @@ export async function POST(req: NextRequest) {
         state.lastGuesserId = null;
         state.guessedLetters = [];
         state.buzzersPaused = false;
+        state.buzzersReenableAt = null;
         // Auto-assign teams if team mode is enabled
         if (state.teamMode) {
           assignTeams();
@@ -116,6 +117,7 @@ export async function POST(req: NextRequest) {
         state.lastGuesserId = guesserId; // Cooldown: they can't buzz next turn
         state.buzzedPlayerId = null;
         state.buzzersPaused = true; // Automatically pause buzzers after a letter is guessed
+        state.buzzersReenableAt = Date.now() + 5000; // Auto re-enable after 5 seconds
         await broadcastState();
         return NextResponse.json({ ok: true });
       }
@@ -291,7 +293,18 @@ export async function POST(req: NextRequest) {
 
       case "toggle_buzzers_pause": {
         state.buzzersPaused = !state.buzzersPaused;
+        state.buzzersReenableAt = null; // Clear auto-reenable when host manually toggles
         await broadcastState();
+        return NextResponse.json({ ok: true });
+      }
+
+      case "reenable_buzzers": {
+        // Auto-reenable: clients (host/watch) call when their 5s timer fires
+        if (state.buzzersReenableAt) {
+          state.buzzersPaused = false;
+          state.buzzersReenableAt = null;
+          await broadcastState();
+        }
         return NextResponse.json({ ok: true });
       }
 

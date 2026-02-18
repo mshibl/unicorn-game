@@ -1,11 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { getPusherClient } from "@/lib/pusher-client";
 import type { ClientGameState } from "@/lib/game-state";
 import PlayerList from "@/components/PlayerList";
 import GameBoard from "@/components/GameBoard";
-import { useRef } from "react";
 import {
   Play,
   RotateCcw,
@@ -112,6 +111,30 @@ export default function HostPage() {
   const handleToggleBuzzersPause = useCallback(async () => {
     await gameAction({ action: "toggle_buzzers_pause" });
   }, []);
+
+  // Auto re-enable buzzers 5 seconds after a letter is guessed
+  const reenableTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const reenableAt = gameState?.buzzersReenableAt;
+    if (!gameState?.buzzersPaused || !reenableAt || gameState.status !== "active") {
+      if (reenableTimerRef.current) {
+        clearTimeout(reenableTimerRef.current);
+        reenableTimerRef.current = null;
+      }
+      return;
+    }
+    const delay = Math.max(0, reenableAt - Date.now());
+    reenableTimerRef.current = setTimeout(() => {
+      gameAction({ action: "reenable_buzzers" });
+      reenableTimerRef.current = null;
+    }, delay);
+    return () => {
+      if (reenableTimerRef.current) {
+        clearTimeout(reenableTimerRef.current);
+        reenableTimerRef.current = null;
+      }
+    };
+  }, [gameState?.buzzersPaused, gameState?.buzzersReenableAt, gameState?.status]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 

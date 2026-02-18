@@ -343,6 +343,8 @@ export default function PlayerPage() {
 
   const cooldownReason = iAmOnCooldown
     ? "You just guessed — another player must buzz first this round."
+    : gameState.buzzersPaused && gameState.buzzersReenableAt
+    ? "Buzzers re-enable in a few seconds…"
     : gameState.buzzersPaused
     ? "Buzzers are paused — wait for host to enable them"
     : undefined;
@@ -419,6 +421,7 @@ export default function PlayerPage() {
             hasBuzzed={iAmBuzzed}
             onBuzz={handleBuzz}
             cooldownReason={cooldownReason}
+            buzzersReenableAt={gameState.buzzersReenableAt ?? undefined}
           />
         </main>
 

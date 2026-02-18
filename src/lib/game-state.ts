@@ -14,6 +14,7 @@ export interface GameState {
   targetPhrase: string;
   skipTurnAfterGuess: boolean;
   buzzersPaused: boolean;
+  buzzersReenableAt: number | null; // timestamp when buzzers auto-enable (5s after letter guess)
   winnerPhotoDataUrl: string; // Base64 data URL from host upload
   teamMode: boolean;
   teamAssignments: Record<string, Team>; // playerId -> team
@@ -29,6 +30,7 @@ const gameState: GameState = {
   targetPhrase: "THE UNICORN",
   skipTurnAfterGuess: false,
   buzzersPaused: false,
+  buzzersReenableAt: null,
   winnerPhotoDataUrl: "",
   teamMode: false,
   teamAssignments: {},
@@ -46,6 +48,7 @@ export function resetGameState(): void {
   gameState.lastGuesserId = null;
   gameState.guessedLetters = [];
   gameState.buzzersPaused = false;
+  gameState.buzzersReenableAt = null;
   gameState.teamAssignments = {};
   gameState.showDancingUnicorn = true;
 }
@@ -73,6 +76,7 @@ export function getClientGameState() {
     guessedLetters: gameState.guessedLetters,
     skipTurnAfterGuess: gameState.skipTurnAfterGuess,
     buzzersPaused: gameState.buzzersPaused,
+    buzzersReenableAt: gameState.buzzersReenableAt,
     winnerPhotoDataUrl: gameState.winnerPhotoDataUrl,
     teamMode: gameState.teamMode,
     teamAssignments: gameState.teamAssignments,
