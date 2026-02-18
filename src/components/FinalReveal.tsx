@@ -52,7 +52,7 @@ export default function FinalReveal({ fullName, winnerPhotoSrc }: FinalRevealPro
       process.env.NEXT_PUBLIC_CELEBRATION_MUSIC_URL || "/unicorn-reveal.mp3";
     const audio = new Audio(url);
     celebrationAudioRef.current = audio;
-    audio.loop = true;
+    audio.loop = false;
     audio.volume = 0.5;
 
     audio.addEventListener("canplaythrough", () => setCelebrationReady(true));
