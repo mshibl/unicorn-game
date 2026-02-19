@@ -321,6 +321,40 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true });
       }
 
+      case "music_play": {
+        state.musicStarted = true;
+        state.musicPlaying = true;
+        await broadcastState();
+        return NextResponse.json({ ok: true });
+      }
+
+      case "music_pause": {
+        state.musicPlaying = false;
+        await broadcastState();
+        return NextResponse.json({ ok: true });
+      }
+
+      case "music_reset": {
+        state.musicPlaying = true;
+        state.musicStarted = true;
+        state.musicResetRequestedAt = Date.now();
+        await broadcastState();
+        return NextResponse.json({ ok: true });
+      }
+
+      case "set_watch_mode": {
+        const wmEnabled = body.watchMode;
+        if (typeof wmEnabled !== "boolean") {
+          return NextResponse.json(
+            { error: "watchMode must be boolean" },
+            { status: 400 }
+          );
+        }
+        state.watchMode = wmEnabled;
+        await broadcastState();
+        return NextResponse.json({ ok: true });
+      }
+
       case "set_team_mode": {
         const enabled = body.teamMode;
         if (typeof enabled !== "boolean") {

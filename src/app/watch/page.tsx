@@ -8,19 +8,25 @@ import FinalReveal from "@/components/FinalReveal";
 import type { ClientGameState } from "@/lib/game-state";
 import { Users, Loader2, Music, Pause, RotateCcw, Play } from "lucide-react";
 
+async function musicAction(action: "music_play" | "music_pause" | "music_reset") {
+  await fetch("/api/game/action", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action }),
+  });
+}
+
 export default function WatchPage() {
   const [gameState, setGameState] = useState<ClientGameState | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [musicPlaying, setMusicPlaying] = useState(false);
-  const [musicStarted, setMusicStarted] = useState(false);
   const [musicReady, setMusicReady] = useState(false);
   const musicRef = useRef<HTMLAudioElement | null>(null);
-  const musicPlayingRef = useRef(false);
+  const musicPlayingRef = useRef(false); // for audio "ended" fallback
   const buzzerSoundRef = useRef<HTMLAudioElement | null>(null);
   const correctChoiceSoundRef = useRef<HTMLAudioElement | null>(null);
   const wrongChoiceSoundRef = useRef<HTMLAudioElement | null>(null);
-  const musicStartedRef = useRef(false);
   const prevGuessedCountRef = useRef(0);
+  const lastMusicResetRequestedAtRef = useRef<number | null>(null);
 
   const loadState = useCallback(async () => {
     setError(null);
@@ -109,48 +115,46 @@ export default function WatchPage() {
     };
   }, []);
 
-  // Set up Media Session API for Mac media keys support
+  // Sync audio element with game state (from host or watch controls via Pusher)
+  useEffect(() => {
+    const music = musicRef.current;
+    if (!music) return;
+
+    const watchMode = gameState?.watchMode ?? true;
+    const musicPlaying = gameState?.musicPlaying ?? false;
+    const musicStarted = gameState?.musicStarted ?? false;
+    const resetAt = gameState?.musicResetRequestedAt ?? null;
+
+    musicPlayingRef.current = musicPlaying;
+
+    if (!watchMode) {
+      music.pause();
+      return;
+    }
+
+    if (resetAt !== null && resetAt !== lastMusicResetRequestedAtRef.current) {
+      lastMusicResetRequestedAtRef.current = resetAt;
+      music.currentTime = 0;
+      music.play().catch(() => {});
+    } else if (musicStarted && musicPlaying) {
+      music.play().catch(() => {});
+    } else if (!musicPlaying) {
+      music.pause();
+    }
+  }, [gameState?.watchMode, gameState?.musicPlaying, gameState?.musicStarted, gameState?.musicResetRequestedAt]);
+
+  // Set up Media Session API for Mac media keys support (delegates to API for sync)
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
 
     const mediaSession = navigator.mediaSession;
-    
-    // Set metadata
     mediaSession.metadata = new MediaMetadata({
       title: "Game Show Music",
       artist: "Background Music",
     });
 
-    // Handle play action (from media keys)
-    const handlePlay = () => {
-      if (musicStartedRef.current && !musicPlayingRef.current) {
-        // Resume if already started
-        musicRef.current?.play().then(() => {
-          musicPlayingRef.current = true;
-          setMusicPlaying(true);
-          updateMediaSessionState();
-        });
-      } else if (!musicStartedRef.current) {
-        // Start if not started
-        musicRef.current?.play().then(() => {
-          musicPlayingRef.current = true;
-          musicStartedRef.current = true;
-          setMusicPlaying(true);
-          setMusicStarted(true);
-          updateMediaSessionState();
-        });
-      }
-    };
-
-    // Handle pause action (from media keys)
-    const handlePause = () => {
-      if (musicPlayingRef.current) {
-        musicRef.current?.pause();
-        musicPlayingRef.current = false;
-        setMusicPlaying(false);
-        updateMediaSessionState();
-      }
-    };
+    const handlePlay = () => musicAction("music_play");
+    const handlePause = () => musicAction("music_pause");
 
     mediaSession.setActionHandler("play", handlePlay);
     mediaSession.setActionHandler("pause", handlePause);
@@ -181,13 +185,13 @@ export default function WatchPage() {
   useEffect(() => {
     // Load correct/wrong choice sounds
     const correctSound = new Audio(
-      process.env.NEXT_PUBLIC_CORRECT_ANSWER_URL || "/correct-answer.mp3"
+      process.env.NEXT_PUBLIC_CORRECT_ANSWER_URL || "/correct-choice.mp3"
     );
     const wrongSound = new Audio(
-      process.env.NEXT_PUBLIC_WRONG_ANSWER_URL || "/wrong-answer.mp3"
+      process.env.NEXT_PUBLIC_WRONG_ANSWER_URL || "/wrong-choice.mp3"
     );
     correctSound.volume = 0.8;
-    wrongSound.volume = 0.8;
+    wrongSound.volume = 0.4;
     correctChoiceSoundRef.current = correctSound;
     wrongChoiceSoundRef.current = wrongSound;
     return () => {
@@ -199,15 +203,15 @@ export default function WatchPage() {
   }, []);
 
   useEffect(() => {
-    // Play correct/wrong sound when a letter is guessed
     const guessed = gameState?.guessedLetters ?? [];
     const masked = gameState?.maskedPhrase ?? "";
+    const watchMode = gameState?.watchMode ?? true;
     const prevCount = prevGuessedCountRef.current;
 
     if (guessed.length === prevCount + 1) {
       const newLetter = guessed[guessed.length - 1]?.toUpperCase();
       prevGuessedCountRef.current = guessed.length;
-      if (newLetter) {
+      if (newLetter && watchMode) {
         const isCorrect = masked.toUpperCase().includes(newLetter);
         const sound = isCorrect ? correctChoiceSoundRef.current : wrongChoiceSoundRef.current;
         if (sound) {
@@ -218,55 +222,42 @@ export default function WatchPage() {
     } else {
       prevGuessedCountRef.current = guessed.length;
     }
-  }, [gameState?.guessedLetters, gameState?.maskedPhrase]);
+  }, [gameState?.guessedLetters, gameState?.maskedPhrase, gameState?.watchMode]);
 
-  const updateMediaSessionState = () => {
-    if ("mediaSession" in navigator) {
-      const mediaSession = navigator.mediaSession;
-      if (musicPlayingRef.current) {
-        mediaSession.playbackState = "playing";
-      } else {
-        mediaSession.playbackState = "paused";
-      }
-    }
-  };
+  // Keep Media Session playback state in sync with game state (for OS media controls)
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    const playing = gameState?.musicPlaying ?? false;
+    navigator.mediaSession.playbackState = playing ? "playing" : "paused";
+  }, [gameState?.musicPlaying]);
+
+  const watchMode = gameState?.watchMode ?? true;
 
   const startMusic = () => {
-    musicRef.current?.play().then(() => {
-      musicPlayingRef.current = true;
-      musicStartedRef.current = true;
-      setMusicPlaying(true);
-      setMusicStarted(true);
-      updateMediaSessionState();
-    });
+    if (!watchMode) return;
+    const music = musicRef.current;
+    if (music) {
+      music.play().catch(() => {});
+    }
+    musicAction("music_play");
   };
-
   const pauseMusic = () => {
     musicRef.current?.pause();
-    musicPlayingRef.current = false;
-    setMusicPlaying(false);
-    updateMediaSessionState();
+    musicAction("music_pause");
   };
-
   const resumeMusic = () => {
-    musicRef.current?.play().then(() => {
-      musicPlayingRef.current = true;
-      setMusicPlaying(true);
-      updateMediaSessionState();
-    });
+    if (!watchMode) return;
+    musicRef.current?.play().catch(() => {});
+    musicAction("music_play");
   };
-
   const resetMusic = () => {
-    if (musicRef.current) {
-      musicRef.current.currentTime = 0;
-      musicRef.current.play().then(() => {
-        musicPlayingRef.current = true;
-        musicStartedRef.current = true;
-        setMusicPlaying(true);
-        setMusicStarted(true);
-        updateMediaSessionState();
-      });
+    if (!watchMode) return;
+    const music = musicRef.current;
+    if (music) {
+      music.currentTime = 0;
+      music.play().catch(() => {});
     }
+    musicAction("music_reset");
   };
 
   useEffect(() => {
@@ -275,22 +266,22 @@ export default function WatchPage() {
 
   useEffect(() => {
     const music = musicRef.current;
+    const watchMode = gameState?.watchMode ?? true;
     if (!music) return;
 
     if (gameState?.buzzedPlayerId) {
-      // Lower music volume while buzzer is active (don't pause)
       music.volume = 0.04;
-      // Play buzzer sound effect
-      const buzzer = buzzerSoundRef.current;
-      if (buzzer) {
-        buzzer.currentTime = 0;
-        buzzer.play().catch((e) => console.warn("Buzzer play failed:", e));
+      if (watchMode) {
+        const buzzer = buzzerSoundRef.current;
+        if (buzzer) {
+          buzzer.currentTime = 0;
+          buzzer.play().catch((e) => console.warn("Buzzer play failed:", e));
+        }
       }
     } else {
-      // Restore normal music volume when buzzer is released
       music.volume = 0.1;
     }
-  }, [gameState?.buzzedPlayerId]);
+  }, [gameState?.buzzedPlayerId, gameState?.watchMode]);
 
   if (gameState?.status === "revealed") {
     return (
@@ -302,10 +293,7 @@ export default function WatchPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white p-6">
-      <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-linear-to-r from-amber-300 to-emerald-400 text-center mb-6">
-        Guess The Unicorn Name
-      </h1>
+    <div className="min-h-screen bg-linear-to-b from-slate-900 via-slate-900 to-slate-950 text-white p-6">
       {/* Dancing unicorn strolling along the bottom (board only, not on final reveal) */}
       {gameState?.showDancingUnicorn && (
         <div
@@ -323,62 +311,66 @@ export default function WatchPage() {
         </div>
       )}
 
-      {musicReady && (
-        musicPlaying ? (
-          <div className="fixed bottom-6 right-6 flex items-center gap-3 z-50 shadow-lg">
-            <span className="text-sm font-medium text-slate-300 flex items-center gap-2">
-              <Music className="w-4 h-4" />
-              Music
-            </span>
-            <button
-              onClick={pauseMusic}
-              className="flex items-center gap-2 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-full transition-colors"
-              title="Pause music"
-            >
-              <Pause className="w-4 h-4" />
-              Pause
-            </button>
-            <button
-              onClick={resetMusic}
-              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-full transition-colors"
-              title="Reset music"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Reset
-            </button>
+      {musicReady && (gameState?.watchMode ?? true) && (
+        <div className="group fixed bottom-0 right-0 z-50 p-6">
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            {gameState?.musicPlaying ? (
+              <div className="flex items-center gap-3 shadow-lg">
+                <span className="text-sm font-medium text-slate-300 flex items-center gap-2">
+                  <Music className="w-4 h-4" />
+                  Music
+                </span>
+                <button
+                  onClick={pauseMusic}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-full transition-colors"
+                  title="Pause music"
+                >
+                  <Pause className="w-4 h-4" />
+                  Pause
+                </button>
+                <button
+                  onClick={resetMusic}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-full transition-colors"
+                  title="Reset music"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Reset
+                </button>
+              </div>
+            ) : gameState?.musicStarted ? (
+              <div className="flex items-center gap-3 shadow-lg">
+                <span className="text-sm font-medium text-slate-300 flex items-center gap-2">
+                  <Music className="w-4 h-4" />
+                  Music
+                </span>
+                <button
+                  onClick={resumeMusic}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-full transition-colors"
+                  title="Resume music"
+                >
+                  <Play className="w-4 h-4" />
+                  Resume
+                </button>
+                <button
+                  onClick={resetMusic}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-full transition-colors"
+                  title="Reset music"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Reset
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={startMusic}
+                className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded-full shadow-lg transition-colors"
+              >
+                <Music className="w-4 h-4" />
+                Start music
+              </button>
+            )}
           </div>
-        ) : musicStarted ? (
-          <div className="fixed bottom-6 right-6 flex items-center gap-3 z-50 shadow-lg">
-            <span className="text-sm font-medium text-slate-300 flex items-center gap-2">
-              <Music className="w-4 h-4" />
-              Music
-            </span>
-            <button
-              onClick={resumeMusic}
-              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-full transition-colors"
-              title="Resume music"
-            >
-              <Play className="w-4 h-4" />
-              Resume
-            </button>
-            <button
-              onClick={resetMusic}
-              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-full transition-colors"
-              title="Reset music"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Reset
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={startMusic}
-            className="fixed bottom-6 right-6 flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold rounded-full z-50 shadow-lg transition-colors"
-          >
-            <Music className="w-4 h-4" />
-            Start music
-          </button>
-        )
+        </div>
       )}
 
       <div className="max-w-6xl mx-auto flex gap-6">
@@ -439,6 +431,9 @@ export default function WatchPage() {
                   </div>
                 </div>
               )}
+              <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-linear-to-r from-amber-300 to-emerald-400 text-center">
+                Guess The Unicorn Name
+              </h1>
               <GameBoard maskedPhrase={gameState.maskedPhrase} />
               <p className="text-center text-slate-500 text-sm">
                 Players buzz on their screens

@@ -17,6 +17,8 @@ import {
   ImagePlus,
   Loader2,
   Pause,
+  Music,
+  Volume2,
 } from "lucide-react";
 
 type HostGameState = ClientGameState & { targetPhrase?: string };
@@ -78,8 +80,12 @@ export default function HostPage() {
     await gameAction({ action: "remove_player", playerId });
   }, []);
 
-  const handleRevealLetter = useCallback(async () => {
-    await gameAction({ action: "reveal_letter" });
+  const handleRevealLetter = useCallback(async (letter?: string) => {
+    const body: Record<string, unknown> = { action: "reveal_letter" };
+    if (letter && /^[A-Z]$/i.test(letter)) {
+      body.letter = letter.toUpperCase();
+    }
+    await gameAction(body);
   }, []);
 
   const handleReveal = useCallback(async () => {
@@ -111,6 +117,14 @@ export default function HostPage() {
   const handleToggleBuzzersPause = useCallback(async () => {
     await gameAction({ action: "toggle_buzzers_pause" });
   }, []);
+
+  const handleSetWatchMode = useCallback(async (enabled: boolean) => {
+    await gameAction({ action: "set_watch_mode", watchMode: enabled });
+  }, []);
+
+  const handleMusicPlay = useCallback(() => gameAction({ action: "music_play" }), []);
+  const handleMusicPause = useCallback(() => gameAction({ action: "music_pause" }), []);
+  const handleMusicReset = useCallback(() => gameAction({ action: "music_reset" }), []);
 
   // Auto re-enable buzzers 5 seconds after a letter is guessed
   const reenableTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -386,6 +400,79 @@ export default function HostPage() {
           <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-2xl p-5">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0 flex-1">
+                <p className="font-medium text-slate-300 flex items-center gap-2">
+                  <Volume2 className="w-5 h-5 text-slate-400" />
+                  Watch Mode Audio
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  When on, music &amp; sound effects only play on the watch page
+                </p>
+              </div>
+              <button
+                onClick={() =>
+                  handleSetWatchMode(!(gameState?.watchMode ?? true))
+                }
+                className={`relative shrink-0 w-14 h-8 rounded-full transition-colors ${
+                  gameState?.watchMode !== false
+                    ? "bg-emerald-600"
+                    : "bg-slate-600"
+                }`}
+                role="switch"
+                aria-checked={gameState?.watchMode !== false}
+              >
+                <span
+                  className={`absolute top-1 w-6 h-6 rounded-full bg-white shadow transition-transform ${
+                    gameState?.watchMode !== false
+                      ? "left-7"
+                      : "left-1"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-2xl p-5">
+            <div className="flex items-center gap-2 text-slate-400 mb-3">
+              <Music className="w-5 h-5" />
+              <span className="font-medium">Watch Page Music</span>
+            </div>
+            <p className="text-xs text-slate-500 mb-3">
+              Control background music on the watch screen
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {gameState?.musicPlaying ? (
+                <button
+                  onClick={handleMusicPause}
+                  className="flex items-center gap-2 px-4 py-2 bg-slate-600 hover:bg-slate-500 text-slate-300 text-sm font-medium rounded-lg transition-colors"
+                  title="Pause music"
+                >
+                  <Pause className="w-4 h-4" />
+                  Pause
+                </button>
+              ) : (
+                <button
+                  onClick={handleMusicPlay}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition-colors"
+                  title="Start or resume music"
+                >
+                  <Play className="w-4 h-4" />
+                  Play
+                </button>
+              )}
+              <button
+                onClick={handleMusicReset}
+                className="flex items-center gap-2 px-4 py-2 bg-amber-600/80 hover:bg-amber-500/80 text-white text-sm font-medium rounded-lg transition-colors"
+                title="Restart music from beginning"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Reset
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-2xl p-5">
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0 flex-1">
                 <p className="font-medium text-slate-300">Team Mode</p>
                 <p className="text-xs text-slate-500 mt-0.5">
                   Divide players into Blue and Red teams. Teams are auto-assigned when game starts.
@@ -447,55 +534,33 @@ export default function HostPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6 mb-6">
-          <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-2xl p-6">
-            <div className="flex items-center gap-2 text-slate-400 mb-4">
+        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6 mb-6 lg:min-h-[calc(100vh-16rem)]">
+          <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-2xl p-6 flex flex-col min-h-0 lg:min-h-[calc(100vh-16rem)]">
+            <div className="flex items-center gap-2 text-slate-400 mb-4 shrink-0">
               <Users className="w-5 h-5" />
               <span className="font-medium">
                 Players ({gameState?.players.length ?? 0})
               </span>
             </div>
-            <PlayerList
-              players={gameState?.players ?? []}
-              buzzedPlayerId={gameState?.buzzedPlayerId ?? null}
-              teamMode={gameState?.teamMode ?? false}
-              teamAssignments={gameState?.teamAssignments ?? {}}
-              onUnbuzz={handleUnbuzz}
-              onRemovePlayer={handleRemovePlayer}
-            />
+            <div className="flex-1 min-h-0 overflow-auto">
+              <PlayerList
+                players={gameState?.players ?? []}
+                buzzedPlayerId={gameState?.buzzedPlayerId ?? null}
+                teamMode={gameState?.teamMode ?? false}
+                teamAssignments={gameState?.teamAssignments ?? {}}
+                onUnbuzz={handleUnbuzz}
+                onRemovePlayer={handleRemovePlayer}
+              />
+            </div>
           </div>
 
-          <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-2xl p-6 min-w-0">
-            <h3 className="text-slate-400 font-medium mb-4 text-center">
-              Board Preview
-            </h3>
-            {gameState ? (
-              <div className="max-w-4xl mx-auto">
-                <GameBoard maskedPhrase={gameState.maskedPhrase} />
-              </div>
-            ) : (
-              <div className="text-center text-slate-600 py-12">
-                Game not started
-              </div>
-            )}
+          <div className="flex flex-col min-w-0 gap-6">
+            <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-2xl p-6 shrink-0">
+              <h3 className="text-slate-400 font-medium mb-6 text-center">
+                Game Controls
+              </h3>
 
-            {gameState && gameState.guessedLetters.length > 0 && (
-              <div className="mt-4 text-center">
-                <span className="text-slate-500 text-sm">Guessed: </span>
-                <span className="text-slate-300 font-mono tracking-wider">
-                  {gameState.guessedLetters.join(", ")}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-2xl p-6">
-          <h3 className="text-slate-400 font-medium mb-6 text-center">
-            Game Controls
-          </h3>
-
-          <div className="flex flex-wrap items-center justify-center gap-4">
+              <div className="flex flex-wrap items-center justify-center gap-4">
             <button
               onClick={handleStart}
               disabled={gameState?.status === "active"}
@@ -553,7 +618,7 @@ export default function HostPage() {
             {(gameState?.status === "active" &&
               gameState.guessedLetters.length < 26) && (
               <button
-                onClick={handleRevealLetter}
+                onClick={() => handleRevealLetter()}
                 className="flex items-center gap-2 px-6 py-3 bg-slate-700 hover:bg-slate-600 border border-slate-600 rounded-xl text-slate-300 font-bold transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-amber-400/50"
                 title="Reveal a random letter from the phrase"
               >
@@ -585,21 +650,60 @@ export default function HostPage() {
             </button>
           </div>
 
-          {gameState?.buzzedPlayerId && (
-            <div className="mt-6 flex items-center justify-center">
-              <div className="inline-flex items-center gap-2 px-5 py-3 bg-amber-500/20 border border-amber-400/40 rounded-xl text-amber-300 font-medium">
-                <Zap className="w-5 h-5 animate-pulse" />
-                <span>
-                  <strong>
-                    {gameState.players.find(
-                      (p) => p.id === gameState.buzzedPlayerId
-                    )?.name ?? "Unknown"}
-                  </strong>{" "}
-                  has the floor — waiting for their letter guess.
-                </span>
-              </div>
+              {gameState?.buzzedPlayerId && (
+                <div className="mt-6 flex items-center justify-center">
+                  <div className="inline-flex items-center gap-2 px-5 py-3 bg-amber-500/20 border border-amber-400/40 rounded-xl text-amber-300 font-medium">
+                    <Zap className="w-5 h-5 animate-pulse" />
+                    <span>
+                      <strong>
+                        {gameState.players.find(
+                          (p) => p.id === gameState.buzzedPlayerId
+                        )?.name ?? "Unknown"}
+                      </strong>{" "}
+                      has the floor — waiting for their letter guess.
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+
+            <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-2xl p-6 min-w-0 flex-1">
+              <h3 className="text-slate-400 font-medium mb-4 text-center">
+                Board Preview
+                {gameState && gameState.status === "active" && (
+                  <span className="block text-slate-500 text-sm font-normal mt-1">
+                    Click a box to reveal that letter to everyone
+                  </span>
+                )}
+              </h3>
+              {gameState ? (
+                <div className="max-w-4xl mx-auto">
+                  <GameBoard
+                    maskedPhrase={gameState.maskedPhrase}
+                    targetPhrase={gameState.targetPhrase}
+                    onBoxClick={
+                      gameState?.status === "active"
+                        ? handleRevealLetter
+                        : undefined
+                    }
+                  />
+                </div>
+              ) : (
+                <div className="text-center text-slate-600 py-12">
+                  Game not started
+                </div>
+              )}
+
+              {gameState && gameState.guessedLetters.length > 0 && (
+                <div className="mt-4 text-center">
+                  <span className="text-slate-500 text-sm">Guessed: </span>
+                  <span className="text-slate-300 font-mono tracking-wider">
+                    {gameState.guessedLetters.join(", ")}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

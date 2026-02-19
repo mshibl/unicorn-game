@@ -19,6 +19,10 @@ export interface GameState {
   teamMode: boolean;
   teamAssignments: Record<string, Team>; // playerId -> team
   showDancingUnicorn: boolean;
+  musicPlaying: boolean;
+  musicStarted: boolean;
+  musicResetRequestedAt: number | null; // timestamp when host requested reset (watch seeks to 0)
+  watchMode: boolean; // when true, audio (music + SFX) only plays on the watch page
 }
 
 const gameState: GameState = {
@@ -35,6 +39,10 @@ const gameState: GameState = {
   teamMode: false,
   teamAssignments: {},
   showDancingUnicorn: true,
+  musicPlaying: false,
+  musicStarted: false,
+  musicResetRequestedAt: null,
+  watchMode: true,
 };
 
 export function getGameState(): GameState {
@@ -51,6 +59,10 @@ export function resetGameState(): void {
   gameState.buzzersReenableAt = null;
   gameState.teamAssignments = {};
   gameState.showDancingUnicorn = true;
+  gameState.musicPlaying = false;
+  gameState.musicStarted = false;
+  gameState.musicResetRequestedAt = null;
+  gameState.watchMode = true;
 }
 
 export function assignTeams(): void {
@@ -81,6 +93,10 @@ export function getClientGameState() {
     teamMode: gameState.teamMode,
     teamAssignments: gameState.teamAssignments,
     showDancingUnicorn: gameState.showDancingUnicorn,
+    musicPlaying: gameState.musicPlaying,
+    musicStarted: gameState.musicStarted,
+    musicResetRequestedAt: gameState.musicResetRequestedAt,
+    watchMode: gameState.watchMode,
     phraseLength: gameState.targetPhrase.length,
     maskedPhrase: gameState.targetPhrase
       .split("")

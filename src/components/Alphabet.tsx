@@ -19,7 +19,7 @@ export default function Alphabet({
     <div className="grid grid-cols-3 gap-1.5">
       {LETTERS.map((letter) => {
         const isGuessed = guessedLetters.includes(letter);
-        const isDisabled = isGuessed || !canGuess;
+        const isDisabled = !canGuess;
 
         return (
           <button

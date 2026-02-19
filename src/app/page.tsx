@@ -29,6 +29,8 @@ export default function PlayerPage() {
   const [gameState, setGameState] = useState<ClientGameState | null>(null);
   const [buzzerFlash, setBuzzerFlash] = useState(false);
   const [joining, setJoining] = useState(false);
+  const [alreadyPickedMessage, setAlreadyPickedMessage] = useState(false);
+  const alreadyPickedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playerIdRef = useRef<string | null>(null);
   const buzzerSoundRef = useRef<HTMLAudioElement | null>(null);
 
@@ -162,10 +164,12 @@ export default function PlayerPage() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === "Space" && gameState.buzzedPlayerId === null) {
         e.preventDefault();
-        const buzzer = buzzerSoundRef.current;
-        if (buzzer) {
-          buzzer.currentTime = 0;
-          buzzer.play().catch(() => {});
+        if (!(gameState.watchMode ?? true)) {
+          const buzzer = buzzerSoundRef.current;
+          if (buzzer) {
+            buzzer.currentTime = 0;
+            buzzer.play().catch(() => {});
+          }
         }
         gameAction({ action: "buzz", playerId: playerIdRef.current });
       }
@@ -180,32 +184,54 @@ export default function PlayerPage() {
     if (!joined || !gameState || gameState.status !== "active") return;
     const iAmBuzzed = gameState.buzzedPlayerId === playerIdRef.current;
     if (!iAmBuzzed) return;
+    const guessedLetters = gameState.guessedLetters;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       const key = e.key.toUpperCase();
-      if (LETTERS.has(key) && !gameState.guessedLetters.includes(key)) {
-        e.preventDefault();
-        gameAction({
-          action: "guess_letter",
-          letter: key,
-          playerId: playerIdRef.current,
-        });
+      if (!LETTERS.has(key)) return;
+      e.preventDefault();
+      if (guessedLetters.includes(key)) {
+        setAlreadyPickedMessage(true);
+        if (alreadyPickedTimeoutRef.current) clearTimeout(alreadyPickedTimeoutRef.current);
+        alreadyPickedTimeoutRef.current = setTimeout(() => {
+          setAlreadyPickedMessage(false);
+          alreadyPickedTimeoutRef.current = null;
+        }, 2000);
+        return;
       }
+      gameAction({
+        action: "guess_letter",
+        letter: key,
+        playerId: playerIdRef.current,
+      });
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [joined, gameState]);
 
+  const showAlreadyPicked = useCallback(() => {
+    if (alreadyPickedTimeoutRef.current) clearTimeout(alreadyPickedTimeoutRef.current);
+    setAlreadyPickedMessage(true);
+    alreadyPickedTimeoutRef.current = setTimeout(() => {
+      setAlreadyPickedMessage(false);
+      alreadyPickedTimeoutRef.current = null;
+    }, 2000);
+  }, []);
+
   const handleGuess = useCallback(
     async (letter: string) => {
+      if (gameState?.guessedLetters.includes(letter)) {
+        showAlreadyPicked();
+        return;
+      }
       await gameAction({
         action: "guess_letter",
         letter,
         playerId: playerIdRef.current,
       });
     },
-    []
+    [gameState?.guessedLetters, showAlreadyPicked]
   );
 
   const handleBuzz = useCallback(async () => {
@@ -213,11 +239,12 @@ export default function PlayerPage() {
     const skipTurn = gameState.skipTurnAfterGuess !== false;
     if (skipTurn && gameState.lastGuesserId === playerIdRef.current) return;
     if (gameState.buzzersPaused) return;
-    // Play buzzer sound immediately on click (user interaction unlocks audio)
-    const buzzer = buzzerSoundRef.current;
-    if (buzzer) {
-      buzzer.currentTime = 0;
-      buzzer.play().catch(() => {});
+    if (!(gameState.watchMode ?? true)) {
+      const buzzer = buzzerSoundRef.current;
+      if (buzzer) {
+        buzzer.currentTime = 0;
+        buzzer.play().catch(() => {});
+      }
     }
     await gameAction({ action: "buzz", playerId: playerIdRef.current });
   }, [gameState]);
@@ -401,9 +428,16 @@ export default function PlayerPage() {
               </div>
             )}
             {iAmBuzzed && (
-              <div className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-500/20 border border-emerald-400/40 rounded-full text-emerald-300 font-bold animate-bounce">
-                <span className="text-lg">🎯</span>
-                Pick a letter! (keyboard or click)
+              <div className="flex flex-col items-center gap-2">
+                <div className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-500/20 border border-emerald-400/40 rounded-full text-emerald-300 font-bold animate-bounce">
+                  <span className="text-lg">🎯</span>
+                  Pick a letter! (keyboard or click)
+                </div>
+                {alreadyPickedMessage && (
+                  <p className="text-amber-400 text-sm font-medium animate-pulse" role="alert">
+                    That letter was already chosen
+                  </p>
+                )}
               </div>
             )}
           </div>
