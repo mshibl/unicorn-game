@@ -406,9 +406,12 @@ export default function WatchPage() {
               <p>Connecting…</p>
             </div>
           ) : gameState.status === "waiting" ? (
-            <div className="text-center">
-              <h2 className="text-2xl font-bold mb-2">Waiting room</h2>
-              <p className="text-slate-400">Host will start shortly</p>
+            <div className="w-full max-w-2xl space-y-6">
+              <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-linear-to-r from-amber-300 to-emerald-400 text-center">
+                Guess The Unicorn Name
+              </h1>
+              <GameBoard maskedPhrase={gameState.maskedPhrase} />
+              <p className="text-center text-slate-400">Host will start shortly</p>
             </div>
           ) : (
             <div className="w-full max-w-2xl space-y-6">

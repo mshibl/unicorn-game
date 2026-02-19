@@ -328,9 +328,15 @@ export default function PlayerPage() {
               Connected
             </div>
             <h2 className="text-3xl font-bold text-white mb-3">Waiting Room</h2>
-            <p className="text-slate-400 text-lg">
+            <p className="text-slate-400 text-lg mb-6">
               Hang tight — the host will start the game shortly.
             </p>
+
+            <div className="w-full max-w-2xl mx-auto mb-8">
+              <GameBoard
+                maskedPhrase={gameState?.maskedPhrase ?? "___ ______"}
+              />
+            </div>
           </div>
 
           <div className="bg-slate-800/50 backdrop-blur border border-slate-700/50 rounded-2xl p-6 shadow-xl">
